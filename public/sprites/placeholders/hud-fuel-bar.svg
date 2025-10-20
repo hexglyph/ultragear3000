@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="46" viewBox="0 0 320 46">
+  <rect width="320" height="46" rx="12" fill="#0f172a" stroke="#fb923c" stroke-width="3" stroke-dasharray="12 10"/>
+  <rect x="16" y="13" width="288" height="20" rx="6" fill="#1f2937" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <text x="160" y="30" fill="#f3f4f6" font-family="Segoe UI, sans-serif" font-size="14" text-anchor="middle">FUEL BAR • 320 × 46</text>
+</svg>

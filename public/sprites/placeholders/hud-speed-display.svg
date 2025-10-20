@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="140" viewBox="0 0 360 140">
+  <rect width="360" height="140" rx="18" fill="#111827" stroke="#38bdf8" stroke-width="4" stroke-dasharray="14 12"/>
+  <rect x="20" y="28" width="320" height="84" rx="12" fill="#1f2937" stroke="#f472b6" stroke-width="2" stroke-dasharray="10 8"/>
+  <text x="180" y="70" fill="#f3f4f6" font-family="Segoe UI, sans-serif" font-size="22" text-anchor="middle">HUD SPEED</text>
+  <text x="180" y="98" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="14" text-anchor="middle">360 × 140</text>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="240" viewBox="0 0 720 240">
+  <rect width="720" height="240" rx="28" fill="#0b1120" stroke="#38bdf8" stroke-width="4" stroke-dasharray="20 16"/>
+  <rect x="36" y="36" width="648" height="168" rx="20" fill="#111c34" stroke="#f472b6" stroke-width="2" stroke-dasharray="14 12"/>
+  <text x="360" y="120" fill="#e2e8f0" font-family="Segoe UI, sans-serif" font-size="22" font-weight="600" text-anchor="middle">
+    HOLOGRAM DIALOG
+  </text>
+  <text x="360" y="152" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="16" text-anchor="middle">
+    720 × 240 PLACEHOLDER
+  </text>
+</svg>

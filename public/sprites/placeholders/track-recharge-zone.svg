@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128">
+  <rect width="256" height="128" rx="18" fill="#1a1625" stroke="#fb923c" stroke-width="4" stroke-dasharray="14 10"/>
+  <rect x="20" y="24" width="216" height="80" rx="16" fill="#1f2937" stroke="#f97316" stroke-width="2"/>
+  <text x="128" y="64" fill="#fde68a" font-family="Segoe UI, sans-serif" font-size="18" font-weight="600" text-anchor="middle" dominant-baseline="middle">
+    RECHARGE ZONE
+  </text>
+  <text x="128" y="96" fill="#fb923c" font-family="Segoe UI, sans-serif" font-size="14" text-anchor="middle">
+    256 × 128
+  </text>
+</svg>

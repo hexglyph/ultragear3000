@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="240" viewBox="0 0 380 240">
+  <rect width="380" height="240" rx="20" fill="#0f172a" stroke="#38bdf8" stroke-width="4" stroke-dasharray="16 12"/>
+  <rect x="26" y="32" width="328" height="60" rx="12" fill="#1f2937" stroke="#f472b6" stroke-width="2"/>
+  <text x="190" y="70" fill="#f8fafc" font-family="Segoe UI, sans-serif" font-size="18" text-anchor="middle">
+    UPGRADE TILE
+  </text>
+  <rect x="26" y="112" width="328" height="68" rx="12" fill="#1a2233" stroke="#22d3ee" stroke-width="2"/>
+  <text x="190" y="152" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="14" text-anchor="middle">
+    380 × 240 • PLACEHOLDER
+  </text>
+  <rect x="26" y="192" width="328" height="28" rx="8" fill="#1f2937" stroke="#facc15" stroke-width="2" stroke-dasharray="8 6"/>
+</svg>
