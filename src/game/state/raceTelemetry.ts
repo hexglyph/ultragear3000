@@ -10,6 +10,8 @@ export interface RaceTelemetry {
   progress: number;
   fuel: number;
   armor: number;
+  carPosition: [number, number, number];
+  carDirection: [number, number, number];
 }
 
 interface RaceTelemetryStore extends RaceTelemetry {
@@ -26,7 +28,9 @@ const initialState: RaceTelemetry = {
   bestLap: 0,
   progress: 0,
   fuel: 100,
-  armor: 100
+  armor: 100,
+  carPosition: [0, 0, 0],
+  carDirection: [0, 0, 1]
 };
 
 export const useRaceTelemetry = create<RaceTelemetryStore>((set) => ({

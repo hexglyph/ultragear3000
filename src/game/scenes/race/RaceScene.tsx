@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { Group } from 'three';
 import {
@@ -9,7 +9,7 @@ import {
   MathUtils,
   Vector3
 } from 'three';
-import { GradientTexture, Stars } from '@react-three/drei';
+import { GradientTexture, Stars, Stats, Text } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 
 import { useKeyboardControls } from '../../../core/input/keyboard';
@@ -30,9 +30,11 @@ export function RaceScene() {
   const trackData = race ? race.planet.tracks[race.trackIndex] : null;
   const zoneSpan = DEFAULT_ZONE_SPAN;
   const playerPosition = useRaceTelemetry((state) => state.position);
+  const aiRacerCount = 19;
   const aiStateRef = useRef<AIShipState[]>([]);
   const aiGroupsRef = useRef<Group[]>([]);
-  const racerCount = 6;
+  const [raceStarted, setRaceStarted] = useState(false);
+  const [startStage, setStartStage] = useState<StartStage>('idle');
 
   const rechargePoints = useMemo(
     () =>
@@ -61,8 +63,8 @@ export function RaceScene() {
   }, [race?.trackId, trackData?.id]);
 
   if (aiStateRef.current.length === 0) {
-    aiStateRef.current = new Array(racerCount).fill(0).map((_, index) => {
-      const baseOffset = (index + 1) / (racerCount + 1);
+    aiStateRef.current = new Array(aiRacerCount).fill(0).map((_, index) => {
+      const baseOffset = 0.015 + index * 0.02;
       const baseSpeed = 0.16 + Math.random() * 0.05;
       const color = new Color().setHSL(0.58 + index * 0.07, 0.7, 0.52);
       return {
@@ -71,14 +73,15 @@ export function RaceScene() {
         baseSpeed,
         color,
         boostTimer: 0,
-        lateralOffset: (index % 2 === 0 ? -1 : 1) * (0.28 + Math.random() * 0.28)
+        lateralOffset: (index % 2 === 0 ? -1 : 1) * (0.28 + Math.random() * 0.28),
+        launchDelay: 0.2 + Math.random() * 0.6
       };
     });
   }
 
   useEffect(() => {
-    aiStateRef.current = new Array(racerCount).fill(0).map((_, index) => {
-      const baseOffset = (index + 1) / (racerCount + 1);
+    aiStateRef.current = new Array(aiRacerCount).fill(0).map((_, index) => {
+      const baseOffset = 0.015 + index * 0.02;
       const baseSpeed = 0.16 + Math.random() * 0.05;
       const color = new Color().setHSL(0.58 + index * 0.07, 0.7, 0.52);
       return {
@@ -87,10 +90,41 @@ export function RaceScene() {
         baseSpeed,
         color,
         boostTimer: 0,
-        lateralOffset: (index % 2 === 0 ? -1 : 1) * (0.28 + Math.random() * 0.28)
+        lateralOffset: (index % 2 === 0 ? -1 : 1) * (0.28 + Math.random() * 0.28),
+        launchDelay: 0.2 + Math.random() * 0.6
       };
     });
-  }, [race?.trackId, racerCount]);
+  }, [race?.trackId, aiRacerCount]);
+
+  useEffect(() => {
+    const timeouts: number[] = [];
+    const schedule = (delay: number, stage: StartStage, callback?: () => void) => {
+      const timeout = window.setTimeout(() => {
+        setStartStage(stage);
+        callback?.();
+      }, delay);
+      timeouts.push(timeout);
+    };
+
+    setRaceStarted(false);
+    setStartStage('idle');
+    aiStateRef.current.forEach((racer, index) => {
+      racer.offset = 0.015 + index * 0.02;
+      racer.speed = racer.baseSpeed;
+      racer.boostTimer = 0;
+      racer.launchDelay = 0.2 + Math.random() * 0.6;
+    });
+
+    schedule(600, 'red1');
+    schedule(1400, 'red2');
+    schedule(2200, 'red3');
+    schedule(3000, 'green', () => setRaceStarted(true));
+    schedule(4500, 'idle');
+
+    return () => {
+      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+    };
+  }, [trackCurve]);
 
   const handleFinish = useCallback(() => {
     completeEvent(playerPosition);
@@ -114,6 +148,8 @@ export function RaceScene() {
       <Stars radius={200} count={2000} factor={3} fade speed={1} />
 
       <HorizonBackdrop />
+      <Stats showPanel={0} />
+      <RaceStartLights stage={startStage} />
       <RaceCameraRig curve={trackCurve} />
       <TrackEnvironment
         curve={trackCurve}
@@ -126,8 +162,9 @@ export function RaceScene() {
         rechargeZones={rechargeZones}
         repairZones={repairZones}
         aiStateRef={aiStateRef}
+        raceStarted={raceStarted}
       />
-      <AIShips curve={trackCurve} aiStateRef={aiStateRef} groupsRef={aiGroupsRef} />
+      <AIShips curve={trackCurve} aiStateRef={aiStateRef} groupsRef={aiGroupsRef} raceStarted={raceStarted} />
     </>
   );
 }
@@ -141,7 +178,16 @@ function TrackEnvironment({
   rechargePoints: number[];
   repairPoints: number[];
 }) {
-  const track = useMemo(() => buildTrackRibbon(curve, 12, 512), [curve]);
+  const trackData = useMemo(() => {
+    const length = curve.getLength();
+    const segments = Math.max(1024, Math.ceil(length / 4));
+    return {
+      ribbon: buildTrackRibbon(curve, 12, segments),
+      length
+    };
+  }, [curve]);
+  const track = trackData.ribbon;
+  const groundSize = Math.max(3000, trackData.length * 0.8);
   const zoneMarkers = useMemo(() => {
     const markers: Array<{ position: Vector3; rotationY: number; type: 'fuel' | 'repair' }> = [];
     const convert = (value: number, type: 'fuel' | 'repair') => {
@@ -163,7 +209,7 @@ function TrackEnvironment({
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[420, 420]} />
+        <planeGeometry args={[groundSize, groundSize]} />
         <meshStandardMaterial color="#020617" />
       </mesh>
 
@@ -220,13 +266,15 @@ function RaceCar({
   onFinish,
   rechargeZones,
   repairZones,
-  aiStateRef
+  aiStateRef,
+  raceStarted
 }: {
   curve: CatmullRomCurve3;
   onFinish: () => void;
   rechargeZones: Zone[];
   repairZones: Zone[];
   aiStateRef: MutableRefObject<AIShipState[]>;
+  raceStarted: boolean;
 }) {
   const input = useKeyboardControls();
   const carRef = useRef<Group>(null);
@@ -253,6 +301,7 @@ function RaceCar({
   const collisionCooldown = useRef(0);
   const updateTelemetry = useRaceTelemetry((state) => state.update);
   const totalLaps = useRaceTelemetry((state) => state.totalLaps);
+  const raceStartedRef = useRef(false);
 
   const vehicle = useGameStore((state) => state.vehicle);
 
@@ -281,13 +330,22 @@ function RaceCar({
     collisionCooldown.current = 0;
   }, [curve, vehicle, rechargeZones, repairZones]);
 
+  useEffect(() => {
+    raceStartedRef.current = raceStarted;
+    if (!raceStarted) {
+      velocity.current = 0;
+      lapTimer.current = 0;
+    }
+  }, [raceStarted]);
+
   useFrame((_, delta) => {
+    const hasStarted = raceStartedRef.current;
     if (finished.current) {
       velocity.current = Math.max(0, velocity.current - 40 * delta);
     }
 
-    const accelInput = Math.max(0, input.accelerate);
-    const brakeInput = Math.max(0, input.brake);
+    const accelInput = hasStarted ? Math.max(0, input.accelerate) : 0;
+    const brakeInput = hasStarted ? Math.max(0, input.brake) : 0;
     const accel = accelInput - brakeInput;
     const topSpeedStat = Math.max(200, vehicle.topSpeed);
     const boostMultiplier = input.boost ? 1 + vehicle.boostPower : 1;
@@ -315,25 +373,38 @@ function RaceCar({
     }
 
     if (!finished.current) {
-      velocity.current += accel * maxAcceleration * delta;
-      velocity.current -= Math.sign(velocity.current) * friction * delta;
-      velocity.current = Math.max(Math.min(velocity.current, effectiveTopSpeed), -60);
-      if (accelInput <= 0 && velocity.current > 0) {
-        velocity.current = Math.max(0, velocity.current - 28 * delta);
+      if (hasStarted) {
+        velocity.current += accel * maxAcceleration * delta;
+        velocity.current -= Math.sign(velocity.current) * friction * delta;
+        velocity.current = Math.max(Math.min(velocity.current, effectiveTopSpeed), -60);
+        if (accelInput <= 0 && velocity.current > 0) {
+          velocity.current = Math.max(0, velocity.current - 28 * delta);
+        }
+      } else {
+        velocity.current = Math.max(0, velocity.current - 36 * delta);
       }
     }
 
-    const steeringFactor = -input.steer * Math.min(Math.abs(velocity.current) / 220, 1);
-    progress.current = (progress.current + velocity.current * delta * 0.0008) % 1;
-    if (progress.current < 0) progress.current += 1;
+    if (hasStarted || finished.current) {
+      progress.current = (progress.current + velocity.current * delta * 0.0008) % 1;
+      if (progress.current < 0) progress.current += 1;
+    }
 
-    lateralVelocity.current += -input.steer * 22 * handlingScale * delta;
-    lateralVelocity.current -= lateralVelocity.current * (4 + handlingScale * 3.4) * delta;
-    lateralOffset.current += lateralVelocity.current * delta * 3;
+    if (hasStarted) {
+      lateralVelocity.current += -input.steer * 22 * handlingScale * delta;
+      lateralVelocity.current -= lateralVelocity.current * (4 + handlingScale * 3.4) * delta;
+      lateralOffset.current += lateralVelocity.current * delta * 3;
+    } else {
+      lateralVelocity.current = MathUtils.lerp(lateralVelocity.current, 0, Math.min(1, delta * 8));
+      lateralOffset.current = MathUtils.lerp(lateralOffset.current, 0, Math.min(1, delta * 10));
+    }
+
     const lateralLimit = 3.6 + handlingScale * 0.4;
     lateralOffset.current = MathUtils.clamp(lateralOffset.current, -lateralLimit, lateralLimit);
 
-    lapTimer.current += delta;
+    if (hasStarted && !finished.current) {
+      lapTimer.current += delta;
+    }
 
     if (previousProgress.current > 0.95 && progress.current < 0.05) {
       const completedLap = lapTimer.current;
@@ -352,19 +423,19 @@ function RaceCar({
     previousProgress.current = progress.current;
 
     const rechargeZone = isInZone(progress.current, rechargeZones);
-    if (rechargeZone && !inRechargeZone.current) {
+    if (hasStarted && rechargeZone && !inRechargeZone.current) {
       fuel.current = Math.min(fuelCapacity.current, fuel.current + fuelCapacity.current * 0.35);
     }
     inRechargeZone.current = rechargeZone;
 
     const repairZone = isInZone(progress.current, repairZones);
-    if (repairZone && !inRepairZone.current) {
+    if (hasStarted && repairZone && !inRepairZone.current) {
       armor.current = Math.min(armorCapacity.current, armor.current + armorCapacity.current * 0.3);
     }
     inRepairZone.current = repairZone;
 
     const speedAbs = Math.abs(velocity.current);
-    if (speedAbs > 1 && fuel.current > 0) {
+    if (hasStarted && speedAbs > 1 && fuel.current > 0) {
       const boostPenalty = input.boost ? vehicle.boostPower * 25 : 0;
       const consumptionRate =
         (3.5 + speedAbs * 0.016 + boostPenalty) * fuelModifier.current;
@@ -377,22 +448,22 @@ function RaceCar({
     const right = new Vector3().crossVectors(new Vector3(0, 1, 0), direction).normalize();
     const up = new Vector3().crossVectors(direction, right).normalize();
 
-    const bankAmount = steeringFactor * 0.45;
-
+    const carPosition = trackPoint
+      .clone()
+      .addScaledVector(right, lateralOffset.current)
+      .addScaledVector(up, 0.7);
+    const lookTarget = trackPoint
+      .clone()
+      .add(direction.clone().multiplyScalar(18))
+      .addScaledVector(up, 0.8);
     if (carRef.current) {
-      const position = trackPoint
-        .clone()
-        .addScaledVector(right, lateralOffset.current)
-        .addScaledVector(up, 0.7);
-      carRef.current.position.copy(position);
-      const lookTarget = trackPoint.clone().add(direction.clone().multiplyScalar(12)).addScaledVector(up, 0.5);
+      carRef.current.position.copy(carPosition);
+      carRef.current.up.copy(up);
       carRef.current.lookAt(lookTarget);
-      carRef.current.rotation.z = -MathUtils.clamp(bankAmount + lateralVelocity.current * 0.28, -0.5, 0.5);
-      carRef.current.rotation.x = MathUtils.clamp(-lateralVelocity.current * 0.1, -0.25, 0.25);
     }
 
     const guardThreshold = lateralLimit - 0.2;
-    if (!finished.current && Math.abs(lateralOffset.current) > guardThreshold) {
+    if (hasStarted && !finished.current && Math.abs(lateralOffset.current) > guardThreshold) {
       if (collisionCooldown.current <= 0) {
         const damage = (6 + Math.abs(velocity.current) * 0.028) * armorMitigation.current;
         armor.current = Math.max(0, armor.current - damage);
@@ -403,7 +474,7 @@ function RaceCar({
     }
 
     if (glowRef.current) {
-      glowRef.current.position.copy(carRef.current?.position ?? trackPoint);
+      glowRef.current.position.copy(carRef.current?.position ?? carPosition);
     }
 
     const telemetryPayload = {
@@ -414,12 +485,14 @@ function RaceCar({
       bestLap: bestLap.current || 0,
       position: 1,
       fuel: (fuel.current / fuelCapacity.current) * 100,
-      armor: (armor.current / armorCapacity.current) * 100
+      armor: (armor.current / armorCapacity.current) * 100,
+      carPosition: [carPosition.x, carPosition.y, carPosition.z] as [number, number, number],
+      carDirection: [direction.x, direction.y, direction.z] as [number, number, number]
     };
 
     updateTelemetry(telemetryPayload);
 
-    if (!finished.current && velocity.current > 20) {
+    if (hasStarted && !finished.current && velocity.current > 20) {
       const opponents = aiStateRef.current;
       for (const opponent of opponents) {
         const deltaProgress = ((opponent.offset - progress.current + 1) % 1 + 1) % 1;
@@ -496,33 +569,130 @@ function RaceCar({
   );
 }
 
+function RaceStartLights({ stage }: { stage: StartStage }) {
+  const carPosition = useRaceTelemetry((state) => state.carPosition);
+  const carDirection = useRaceTelemetry((state) => state.carDirection);
+  const groupRef = useRef<Group>(null);
+  const targetPosition = useRef(new Vector3());
+  const forwardVector = useRef(new Vector3());
+  const upVector = useMemo(() => new Vector3(0, 1, 0), []);
+  const offsetVector = useRef(new Vector3());
+  const lookTarget = useRef(new Vector3());
+
+  useEffect(() => {
+    if (groupRef.current) {
+      groupRef.current.visible = stage !== 'idle';
+    }
+  }, [stage]);
+
+  useFrame((_, delta) => {
+    const group = groupRef.current;
+    if (!group) return;
+
+    forwardVector.current.set(carDirection[0], carDirection[1], carDirection[2]);
+    if (forwardVector.current.lengthSq() < 1e-6) {
+      forwardVector.current.set(0, 0, 1);
+    } else {
+      forwardVector.current.normalize();
+    }
+
+    targetPosition.current.set(carPosition[0], carPosition[1], carPosition[2]);
+    offsetVector.current
+      .copy(forwardVector.current)
+      .multiplyScalar(8)
+      .addScaledVector(upVector, 3);
+    targetPosition.current.add(offsetVector.current);
+
+    const smoothing = 1 - Math.pow(0.08, delta * 60);
+    group.position.lerp(targetPosition.current, smoothing);
+
+    lookTarget.current
+      .copy(targetPosition.current)
+      .addScaledVector(forwardVector.current, -8);
+    group.lookAt(lookTarget.current);
+  });
+
+  const activeIndex = START_STAGE_INDEX[stage];
+  const isGreenPhase = stage === 'green';
+
+  return (
+    <group ref={groupRef} visible={stage !== 'idle'}>
+      {START_LIGHT_COLORS.map((color, index) => {
+        const shouldLight =
+          isGreenPhase ? index === 3 : activeIndex >= index && index < 3 && activeIndex >= 0;
+        const emissiveIntensity = shouldLight ? (index === 3 ? 1.6 : 1.2) : 0.08;
+        const opacity = shouldLight ? 1 : 0.3;
+        return (
+          <mesh key={color + index} position={[index * 2.1 - 3.15, 0, 0]}>
+            <sphereGeometry args={[0.6, 24, 24]} />
+            <meshStandardMaterial
+              color={color}
+              emissive={color}
+              emissiveIntensity={emissiveIntensity}
+              transparent
+              opacity={opacity}
+            />
+          </mesh>
+        );
+      })}
+      {stage === 'green' && (
+        <Text position={[0, -1.8, 0]} fontSize={0.9} color="#22c55e" anchorX="center" anchorY="top">
+          VERDE!
+        </Text>
+      )}
+    </group>
+  );
+}
+
 function RaceCameraRig({ curve }: { curve: CatmullRomCurve3 }) {
   const camera = useThree((state) => state.camera);
+  const carPosition = useRaceTelemetry((state) => state.carPosition);
+  const carDirection = useRaceTelemetry((state) => state.carDirection);
   const progress = useRaceTelemetry((state) => state.progress);
+  const worldUp = useMemo(() => new Vector3(0, 1, 0), []);
   const target = useRef(new Vector3());
-  const offset = useRef(new Vector3(0, 4.2, -9.5));
+  const offset = useRef(new Vector3(0, 6, -15));
   const desired = useRef(new Vector3());
+  const followPosition = useRef(new Vector3());
+  const forwardVector = useRef(new Vector3());
+  const rightVector = useRef(new Vector3(1, 0, 0));
+  const upVector = useRef(new Vector3(0, 1, 0));
 
-  useFrame((state, delta) => {
-    const clampedProgress = ((progress % 1) + 1) % 1;
-    const carPoint = curve.getPointAt(clampedProgress);
-    const lookAhead = curve.getPointAt((clampedProgress + 0.01) % 1);
-    const tangent = lookAhead.clone().sub(carPoint).normalize();
+  useFrame(() => {
+    followPosition.current.set(carPosition[0], carPosition[1], carPosition[2]);
+    forwardVector.current.set(carDirection[0], carDirection[1], carDirection[2]);
 
-    const right = new Vector3().crossVectors(tangent, new Vector3(0, 1, 0)).normalize();
-    const up = new Vector3().crossVectors(right, tangent).normalize();
+    if (forwardVector.current.lengthSq() < 1e-6) {
+      const clampedProgress = ((progress % 1) + 1) % 1;
+      const fallbackPoint = curve.getPointAt(clampedProgress);
+      const fallbackNext = curve.getPointAt((clampedProgress + 0.01) % 1);
+      followPosition.current.copy(fallbackPoint);
+      forwardVector.current.copy(fallbackNext.sub(fallbackPoint)).normalize();
+    } else {
+      forwardVector.current.normalize();
+    }
 
-    const chaseOffset = new Vector3()
-      .copy(tangent)
-      .multiplyScalar(offset.current.z)
-      .add(new Vector3().copy(up).multiplyScalar(offset.current.y))
-      .add(new Vector3().copy(right).multiplyScalar(offset.current.x));
+    rightVector.current.crossVectors(worldUp, forwardVector.current);
+    if (rightVector.current.lengthSq() < 1e-6) {
+      rightVector.current.set(1, 0, 0);
+    } else {
+      rightVector.current.normalize();
+    }
+    upVector.current.crossVectors(forwardVector.current, rightVector.current).normalize();
 
-    desired.current.copy(carPoint).add(chaseOffset);
-    target.current.copy(carPoint).addScaledVector(up, 1.8);
+    desired.current
+      .copy(followPosition.current)
+      .addScaledVector(rightVector.current, offset.current.x)
+      .addScaledVector(upVector.current, offset.current.y)
+      .addScaledVector(forwardVector.current, offset.current.z);
 
-    camera.position.lerp(desired.current, 1 - Math.pow(0.001, delta));
-    camera.up.lerp(up, 1 - Math.pow(0.001, delta));
+    target.current
+      .copy(followPosition.current)
+      .addScaledVector(forwardVector.current, 20)
+      .addScaledVector(upVector.current, 2);
+
+    camera.position.copy(desired.current);
+    camera.up.copy(upVector.current);
     camera.lookAt(target.current);
   });
 
@@ -553,23 +723,42 @@ function HorizonBackdrop() {
 function AIShips({
   curve,
   aiStateRef,
-  groupsRef
+  groupsRef,
+  raceStarted
 }: {
   curve: CatmullRomCurve3;
   aiStateRef: MutableRefObject<AIShipState[]>;
   groupsRef: MutableRefObject<Group[]>;
+  raceStarted: boolean;
 }) {
+  const raceStartedRef = useRef(raceStarted);
+
+  useEffect(() => {
+    raceStartedRef.current = raceStarted;
+  }, [raceStarted]);
+
   useFrame((_, delta) => {
     aiStateRef.current.forEach((racer, index) => {
       const group = groupsRef.current[index];
       if (!group) return;
-      if (racer.boostTimer > 0) {
-        racer.boostTimer -= delta;
-        racer.speed = Math.min(racer.speed + delta * 0.3, racer.baseSpeed + 0.12);
+      const hasStarted = raceStartedRef.current;
+
+      if (hasStarted) {
+        if (racer.launchDelay > 0) {
+          racer.launchDelay = Math.max(0, racer.launchDelay - delta);
+        } else {
+          if (racer.boostTimer > 0) {
+            racer.boostTimer -= delta;
+            racer.speed = Math.min(racer.speed + delta * 0.3, racer.baseSpeed + 0.12);
+          } else {
+            racer.speed = Math.max(racer.baseSpeed, racer.speed - delta * 0.2);
+          }
+          racer.offset = (racer.offset + racer.speed * delta * 0.02) % 1;
+        }
       } else {
-        racer.speed = Math.max(racer.baseSpeed, racer.speed - delta * 0.2);
+        racer.speed = racer.baseSpeed;
       }
-      racer.offset = (racer.offset + racer.speed * delta * 0.02) % 1;
+
       const centerPoint = curve.getPointAt(racer.offset);
       const nextPoint = curve.getPointAt((racer.offset + 0.01) % 1);
       const direction = nextPoint.clone().sub(centerPoint).normalize();
@@ -612,6 +801,18 @@ interface Zone {
   end: number;
 }
 
+type StartStage = 'idle' | 'red1' | 'red2' | 'red3' | 'green';
+
+const START_STAGE_INDEX: Record<StartStage, number> = {
+  idle: -1,
+  red1: 0,
+  red2: 1,
+  red3: 2,
+  green: 3
+};
+
+const START_LIGHT_COLORS = ['#ef4444', '#ef4444', '#ef4444', '#22c55e'] as const;
+
 interface AIShipState {
   offset: number;
   speed: number;
@@ -619,6 +820,7 @@ interface AIShipState {
   color: Color;
   boostTimer: number;
   lateralOffset: number;
+  launchDelay: number;
 }
 
 function createZones(points: number[], span: number): Zone[] {

@@ -3,6 +3,7 @@ import { CatmullRomCurve3, Vector3 } from 'three';
 type TrackLayoutGenerator = (segments: number) => Vector3[];
 
 const TWO_PI = Math.PI * 2;
+const TARGET_TRACK_LENGTH = 5000;
 
 function createEllipseLayout(radiusX: number, radiusZ: number, wobble = 0) {
   return (segments: number) => {
@@ -80,5 +81,15 @@ const layoutGenerators: Record<string, TrackLayoutGenerator> = {
 export function createTrackCurve(trackId: string | null, segments = 64) {
   const generator = (trackId && layoutGenerators[trackId]) || layoutGenerators.default;
   const points = generator(segments);
+  let totalLength = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const current = points[i];
+    const next = points[(i + 1) % points.length];
+    totalLength += current.distanceTo(next);
+  }
+  if (totalLength > 0) {
+    const scale = TARGET_TRACK_LENGTH / totalLength;
+    points.forEach((point) => point.multiplyScalar(scale));
+  }
   return new CatmullRomCurve3(points, true, 'centripetal', 0.6);
 }
